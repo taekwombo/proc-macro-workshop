@@ -15,4 +15,3 @@ pub use bitfield_impl::bitfield;
 use bitfield_impl::bitfield_types;
 
 bitfield_types!();
-
