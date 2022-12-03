@@ -1,8 +1,13 @@
-error[E0277]: the trait bound `bitfield::checks::SevenMod8: bitfield::checks::TotalSizeIsMultipleOfEightBits` is not satisfied
+error[E0277]: the trait bound `NotQuiteFourBytes: BitfieldSizeMod8<0>` is not satisfied
   --> tests/04-multiple-of-8bits.rs:53:1
    |
 53 | #[bitfield]
-   | ^^^^^^^^^^^ the trait `bitfield::checks::TotalSizeIsMultipleOfEightBits` is not implemented for `bitfield::checks::SevenMod8`
+   | ^^^^^^^^^^^ the trait `BitfieldSizeMod8<0>` is not implemented for `NotQuiteFourBytes`
    |
-   = help: the trait `bitfield::checks::TotalSizeIsMultipleOfEightBits` is implemented for `bitfield::checks::ZeroMod8`
-   = note: this error originates in the attribute macro `bitfield` (in Nightly builds, run with -Z macro-backtrace for more info)
+   = help: the trait `BitfieldSizeMod8<7>` is implemented for `NotQuiteFourBytes`
+note: required by a bound in `TotalSizeIsMultipleOfEightBits`
+  --> src/lib.rs
+   |
+   | bitfield_types!();
+   | ^^^^^^^^^^^^^^^^^ required by this bound in `TotalSizeIsMultipleOfEightBits`
+   = note: this error originates in the attribute macro `bitfield` which comes from the expansion of the macro `bitfield_types` (in Nightly builds, run with -Z macro-backtrace for more info)

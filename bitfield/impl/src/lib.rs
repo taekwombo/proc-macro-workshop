@@ -1,39 +1,12 @@
 #![feature(once_cell)]
 
 use proc_macro::TokenStream;
-use proc_macro2::{Ident, Span};
-use std::collections::HashMap;
-use std::sync::Once;
 
-mod bits;
-
-static mut IDENT_MAP: Option<HashMap<Ident, u8>> = None;
-static INIT: Once = Once::new();
-
-fn build_ident_map() -> &'static HashMap<Ident, u8> {
-    unsafe {
-        INIT.call_once(|| {
-            let map = (1_u8..=64)
-                .map(|v| (v, Ident::new(&format!("B{}", v), Span::call_site())))
-                .fold(HashMap::new(), |mut map, (bits, ident)| {
-                    map.insert(ident, bits);
-                    map
-                });
-            IDENT_MAP.replace(map);
-        });
-
-        IDENT_MAP.as_ref().unwrap()
-    }
-}
-
-macro_rules! get_ok {
-    ($e:expr) => {
-        match $e {
-            Ok(v) => v,
-            Err(e) => return e.into(),
-        }
-    }
-}
+mod fields;
+mod idents;
+mod size_check;
+mod methods;
+mod traits;
 
 #[proc_macro_attribute]
 pub fn bitfield(args: TokenStream, input: TokenStream) -> TokenStream {
@@ -43,29 +16,45 @@ pub fn bitfield(args: TokenStream, input: TokenStream) -> TokenStream {
     let _args = parse_macro_input!(args as AttributeArgs);
     let input = parse_macro_input!(input as DeriveInput);
 
-    let ident_map = build_ident_map();
-    let fields = get_ok!(bits::get_struct_fields(&input, ident_map));
-    let (_, bytes) = get_ok!(bits::calculate_total_size(&fields, ident_map));
+    let struct_fields = match fields::get_struct_fields(&input) {
+        Ok(r) => r,
+        Err(e) => return e.into(),
+    };
 
-    let methods = bits::generate_methods(&fields, ident_map);
+    let bitfield_size = size_check::bitfield_size(&struct_fields);
 
-    let DeriveInput { ident, vis, .. } = input;
+    let DeriveInput { vis, ident: target, .. } = &input;
+
+    let size_const = idents::size_const(target);
+    let size_mod8_const = idents::size_const_mod(target);
+    let checks_impl = traits::impl_checks_traits(target, &size_mod8_const);
+    let bitfield_impl = traits::impl_bitfield(target, &struct_fields);
+    let getters = methods::getters(&struct_fields);
+    let setters = methods::setters(&struct_fields);
 
     quote! {
+        const #size_const: usize = #bitfield_size;
+        const #size_mod8_const: usize = #size_const % 8;
+
         #[repr(C)]
-        #[derive(Debug, Clone)]
-        #vis struct #ident {
-            data: [u8; #bytes],
+        #[derive(Debug)]
+        #vis struct #target {
+            data: [u8; #size_const / 8],
         }
 
-        impl #ident {
+        #checks_impl
+
+        #bitfield_impl
+
+        impl #target {
             fn new() -> Self {
                 Self {
-                    data: [0; #bytes],
+                    data: [0; #size_const / 8],
                 }
             }
 
-            #methods
+            #getters
+            #setters
         }
     }.into()
 }
@@ -74,23 +63,16 @@ pub fn bitfield(args: TokenStream, input: TokenStream) -> TokenStream {
 pub fn bitfield_types(_input: TokenStream) -> TokenStream {
     use quote::quote;
 
-    let types = build_ident_map()
-        .iter()
-        .map(|(ident, bits)| quote! {
-            pub struct #ident;
-
-            impl Specifier for #ident {
-                const BITS: u8 = #bits;
-            }
-        })
-        .collect::<Vec<_>>();
+    let specifier = traits::get_specifier_definition();
+    let specifier_impl_types = traits::get_types_implementing_specifier();
+    let checks_mod = traits::get_checks_module_definition();
+    let bitfield = traits::get_bitfield_definition();
 
     quote! {
-        pub trait Specifier {
-            const BITS: u8;
-        }
-
-        #(#types)*
+        #bitfield
+        #checks_mod
+        #specifier
+        #specifier_impl_types
     }
     .into()
 }
