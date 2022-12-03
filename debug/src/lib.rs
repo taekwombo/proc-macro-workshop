@@ -1,6 +1,6 @@
 use proc_macro::TokenStream;
-use syn::{parse_macro_input, DeriveInput};
 use quote::quote;
+use syn::{parse_macro_input, DeriveInput};
 
 mod util;
 
@@ -13,28 +13,34 @@ pub fn derive(input: TokenStream) -> TokenStream {
         Ok(v) => v,
         Err(e) => return e.into(),
     };
-    let fields = match get_fields_debug(&data_struct) {
+    let fields = match get_fields_debug(data_struct) {
         Ok(f) => f,
         Err(e) => return e.into(),
     };
 
-    let DeriveInput { ident, generics, .. } = &derive_input;
+    let DeriveInput {
+        ident,
+        generics,
+        attrs,
+        ..
+    } = &derive_input;
     let fmt_name = ident.to_string();
-    let where_clause = generate_where_clause(&fields, generics);
-    let debug_field_calls = proc_macro2::TokenStream::from_iter(
-        fields
-            .iter()
-            .map(|FieldDebug { ident, name, debug, .. }| {
-                let value = debug
-                    .as_ref()
-                    .map(|d| quote! { &::std::format_args!(#d, &self.#ident) })
-                    .unwrap_or_else(|| quote! { &self.#ident });
+    let where_clause =
+        where_clause_from_attrs(attrs).unwrap_or_else(|| generate_where_clause(&fields, generics));
+    let debug_field_calls = proc_macro2::TokenStream::from_iter(fields.iter().map(
+        |FieldDebug {
+             ident, name, debug, ..
+         }| {
+            let value = debug
+                .as_ref()
+                .map(|d| quote! { &::std::format_args!(#d, &self.#ident) })
+                .unwrap_or_else(|| quote! { &self.#ident });
 
-                quote! {
-                    .field(#name, #value)
-                }
-            })
-    );
+            quote! {
+                .field(#name, #value)
+            }
+        },
+    ));
 
     let generics_unbounded = strip_bounds_from_generics(generics);
 
@@ -42,7 +48,7 @@ pub fn derive(input: TokenStream) -> TokenStream {
         impl #generics ::std::fmt::Debug for #ident #generics_unbounded #where_clause {
             fn fmt(&self, f: &mut ::std::fmt::Formatter<'_>) -> ::std::result::Result<(), ::std::fmt::Error> {
                f
-                   .debug_struct(#fmt_name) 
+                   .debug_struct(#fmt_name)
                    #debug_field_calls
                    .finish()
             }

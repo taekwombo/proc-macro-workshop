@@ -1,6 +1,8 @@
 use proc_macro2::{Ident, Span, TokenStream};
-use syn::{Attribute, Type, Lit, DataStruct, DeriveInput, Generics, GenericParam, TypePath, parse::Error};
 use quote::quote;
+use syn::{
+    parse::Error, Attribute, DataStruct, DeriveInput, GenericParam, Generics, Lit, Type, TypePath,
+};
 
 const INVALID_DERIVE_INPUT: &str = "
 Expected:
@@ -15,6 +17,12 @@ const INVALID_DEBUG_ATTR: &str = r#"
 Expected:
 
     #[debug = "..."]
+"#;
+
+const INVALID_DEBUG_BOUND_ATTR: &str = r#"
+Expected:
+
+    #[debug(bound = "T::Assoc: Debug")]
 "#;
 
 macro_rules! err {
@@ -81,7 +89,7 @@ pub fn get_fields_debug(data_struct: &DataStruct) -> Result<Vec<FieldDebug>, Tok
         if f.ident.is_none() {
             return err!(&data_struct.fields);
         }
-        
+
         let ident = f.ident.as_ref().unwrap();
         let debug = match find_debug_attr(&f.attrs) {
             Ok(v) => v,
@@ -101,7 +109,10 @@ pub fn get_fields_debug(data_struct: &DataStruct) -> Result<Vec<FieldDebug>, Tok
 
 // Input example: PhantomData<Option<Y>>
 // Output example: Y
-pub fn find_matching_generic_param_in_path<'a>(ty_path: &'a TypePath, name: &'a str) -> Option<&'a TypePath> {
+pub fn find_matching_generic_param_in_path<'a>(
+    ty_path: &'a TypePath,
+    name: &'a str,
+) -> Option<&'a TypePath> {
     use syn::{GenericArgument, PathArguments};
 
     for seg in &ty_path.path.segments {
@@ -122,7 +133,7 @@ pub fn find_matching_generic_param_in_path<'a>(ty_path: &'a TypePath, name: &'a 
 
             if ty_arg.path.is_ident(name) {
                 return Some(ty_arg);
-            } 
+            }
 
             if let Some(r) = find_matching_generic_param_in_path(ty_arg, name) {
                 return Some(r);
@@ -134,16 +145,23 @@ pub fn find_matching_generic_param_in_path<'a>(ty_path: &'a TypePath, name: &'a 
 }
 
 pub fn generate_where_clause(fields: &Vec<FieldDebug<'_>>, generics: &Generics) -> TokenStream {
-    use syn::{token::Add, PathArguments, TraitBound, Path, TraitBoundModifier, TypeParamBound, WhereClause, PathSegment, PredicateType, punctuated::Punctuated};
+    use syn::{
+        punctuated::Punctuated, token::Add, Path, PathArguments, PathSegment, PredicateType,
+        TraitBound, TraitBoundModifier, TypeParamBound,
+    };
 
     if generics.params.is_empty() {
         return TokenStream::new();
     }
 
-    let mut predicates = generics.where_clause.clone().map(|p| p.predicates.clone()).unwrap_or_else(|| Punctuated::new());
+    let mut predicates = generics
+        .where_clause
+        .clone()
+        .map(|p| p.predicates)
+        .unwrap_or_else(Punctuated::new);
 
-    let debug_bounds: Punctuated<TypeParamBound, Add> = Punctuated::from_iter(vec![
-        TypeParamBound::Trait(TraitBound {
+    let debug_bounds: Punctuated<TypeParamBound, Add> =
+        Punctuated::from_iter(vec![TypeParamBound::Trait(TraitBound {
             paren_token: None,
             modifier: TraitBoundModifier::None,
             lifetimes: None,
@@ -154,9 +172,8 @@ pub fn generate_where_clause(fields: &Vec<FieldDebug<'_>>, generics: &Generics) 
                     PathSegment::from(Ident::new("fmt", Span::call_site())),
                     PathSegment::from(Ident::new("Debug", Span::call_site())),
                 ]),
-            }
-        })
-    ]);
+            },
+        })]);
 
     let mut generic_params = generics
         .clone()
@@ -177,7 +194,7 @@ pub fn generate_where_clause(fields: &Vec<FieldDebug<'_>>, generics: &Generics) 
         };
 
         let is_phantom = match ty.path.segments.first() {
-            Some(ref p) => p.ident == "PhantomData",
+            Some(p) => p.ident == "PhantomData",
             _ => false,
         };
 
@@ -190,7 +207,7 @@ pub fn generate_where_clause(fields: &Vec<FieldDebug<'_>>, generics: &Generics) 
 
                 // If path length > 1 - then it is generic with its associated type.
                 // In such case add new associated item.
-                if p.path.segments.len() > 0 {
+                if !p.path.segments.is_empty() {
                     associated_types.push(p.clone());
                     gen.1 -= 1;
                 } else {
@@ -205,30 +222,37 @@ pub fn generate_where_clause(fields: &Vec<FieldDebug<'_>>, generics: &Generics) 
             continue;
         }
 
-        predicates.push(PredicateType {
-            bounded_ty: TypePath {
-                qself: None,
-                path: Path {
-                    leading_colon: None,
-                    segments: Punctuated::from_iter(vec![PathSegment {
-                        ident: Ident::new(&generic, Span::call_site()),
-                        arguments: PathArguments::None,
-                    } ]),
-                },
-            }.into(),
-            lifetimes: None,
-            colon_token: Default::default(),
-            bounds: debug_bounds.clone(),
-        }.into());
+        predicates.push(
+            PredicateType {
+                bounded_ty: TypePath {
+                    qself: None,
+                    path: Path {
+                        leading_colon: None,
+                        segments: Punctuated::from_iter(vec![PathSegment {
+                            ident: Ident::new(&generic, Span::call_site()),
+                            arguments: PathArguments::None,
+                        }]),
+                    },
+                }
+                .into(),
+                lifetimes: None,
+                colon_token: Default::default(),
+                bounds: debug_bounds.clone(),
+            }
+            .into(),
+        );
     }
 
     for ty in associated_types {
-        predicates.push(PredicateType {
-            bounded_ty: ty.into(),
-            lifetimes: None,
-            colon_token: Default::default(),
-            bounds: debug_bounds.clone(),
-        }.into());
+        predicates.push(
+            PredicateType {
+                bounded_ty: ty.into(),
+                lifetimes: None,
+                colon_token: Default::default(),
+                bounds: debug_bounds.clone(),
+            }
+            .into(),
+        );
     }
 
     if predicates.is_empty() {
@@ -242,13 +266,67 @@ pub fn strip_bounds_from_generics(generics: &Generics) -> Generics {
     let mut result = generics.clone();
     result.where_clause = None;
 
-    result.params = result.params.into_iter().map(|mut g| match g {
-        GenericParam::Type(ref mut i) => {
-            i.bounds = syn::punctuated::Punctuated::new();
-            g
-        },
-        _ => g,
-    }).collect();
+    result.params = result
+        .params
+        .into_iter()
+        .map(|mut g| match g {
+            GenericParam::Type(ref mut i) => {
+                i.bounds = syn::punctuated::Punctuated::new();
+                g
+            }
+            _ => g,
+        })
+        .collect();
 
     result
+}
+
+pub fn where_clause_from_attrs(attrs: &[Attribute]) -> Option<TokenStream> {
+    use syn::{Meta, NestedMeta};
+
+    let mut dbg_clauses: Vec<TokenStream> = Vec::new();
+
+    for a in attrs.iter() {
+        let parsed = match a.parse_meta() {
+            Ok(m) => m,
+            _ => return Some(Error::new_spanned(a, INVALID_DEBUG_BOUND_ATTR).to_compile_error()),
+        };
+
+        let nm = match parsed {
+            Meta::List(l) => l,
+            _ => return Some(Error::new_spanned(a, INVALID_DEBUG_BOUND_ATTR).to_compile_error()),
+        };
+        if !nm.path.is_ident("debug") {
+            continue;
+        }
+        let nested = nm.nested;
+
+        for n in nested {
+            let meta = match n {
+                NestedMeta::Meta(Meta::NameValue(m)) => m,
+                _ => continue,
+            };
+
+            if !meta.path.is_ident("bound") {
+                continue;
+            }
+
+            if let Lit::Str(ref s) = meta.lit {
+                match s.value().parse() {
+                    Ok(v) => dbg_clauses.push(v),
+                    _ => {
+                        return Some(
+                            Error::new_spanned(a, INVALID_DEBUG_BOUND_ATTR).to_compile_error(),
+                        )
+                    }
+                }
+            }
+        }
+    }
+
+    if dbg_clauses.is_empty() {
+        return None;
+    }
+
+    Some(quote! { where #(#dbg_clauses,)* })
 }
