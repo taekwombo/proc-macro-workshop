@@ -1,14 +1,14 @@
 use syn::{Data, DeriveInput, Expr, Field, Fields, Type, TypePath, parse::Error};
 use proc_macro2::{Ident, TokenStream};
 
-static INVALID_BITFIELD_ATTR_INPUT: &str = "Expected:
+const INVALID_BITFIELD_ATTR_INPUT: &str = "Expected:
     #[bitfield]
     struct Name {{
         field_name: <bitfield::Specifier>,
     }}
 ";
 
-static INVALID_BITFIELD_SPEC_INPUT: &str = "Expected:
+const INVALID_BITFIELD_SPEC_INPUT: &str = "Expected:
     #[derive(BitfieldSpecifier)]
     enum Name {{
         VariantName,
