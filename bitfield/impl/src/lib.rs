@@ -30,8 +30,8 @@ pub fn bitfield(args: TokenStream, input: TokenStream) -> TokenStream {
     let _args = parse_macro_input!(args as AttributeArgs);
     let input = parse_macro_input!(input as DeriveInput);
 
-    let fields = get_ok!(input::get_struct_fields(&input));
     let ident_map = build_ident_map();
+    let fields = get_ok!(input::get_struct_fields(&input, &ident_map));
     let bit_size = get_ok!(input::calculate_size(&fields, &ident_map));
     let byte_size = bit_size / 8;
 
