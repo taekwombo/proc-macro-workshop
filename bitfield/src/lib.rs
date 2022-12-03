@@ -12,4 +12,7 @@
 // (macro, trait, struct) through the one bitfield crate.
 pub use bitfield_impl::bitfield;
 
-// TODO other things
+use bitfield_impl::bitfield_types;
+
+bitfield_types!();
+

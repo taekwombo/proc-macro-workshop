@@ -54,7 +54,7 @@
 
 use bitfield::*;
 
-//#[bitfield]
+#[bitfield]
 pub struct MyFourBytes {
     a: B1,
     b: B3,
