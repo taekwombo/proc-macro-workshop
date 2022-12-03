@@ -1,6 +1,8 @@
-#![feature(once_cell)]
+#![feature(int_log)]
 
 use proc_macro::TokenStream;
+use quote::quote;
+use syn::parse_macro_input;
 
 mod fields;
 mod idents;
@@ -10,8 +12,7 @@ mod traits;
 
 #[proc_macro_attribute]
 pub fn bitfield(args: TokenStream, input: TokenStream) -> TokenStream {
-    use syn::{parse_macro_input, AttributeArgs, DeriveInput};
-    use quote::quote;
+    use syn::{AttributeArgs, DeriveInput};
 
     let _args = parse_macro_input!(args as AttributeArgs);
     let input = parse_macro_input!(input as DeriveInput);
@@ -60,8 +61,15 @@ pub fn bitfield(args: TokenStream, input: TokenStream) -> TokenStream {
 }
 
 #[proc_macro]
-pub fn bitfield_types(_input: TokenStream) -> TokenStream {
-    use quote::quote;
+pub fn bitfield_types(input: TokenStream) -> TokenStream {
+    use syn::parse::Error;
+    use proc_macro2::Span;
+
+    if !input.is_empty() {
+        return Error::new(Span::call_site(), "bitfield_types! macro does not accept any input.")
+            .to_compile_error()
+            .into();
+    }
 
     let specifier = traits::get_specifier_definition();
     let specifier_impl_types = traits::get_types_implementing_specifier();
@@ -75,4 +83,20 @@ pub fn bitfield_types(_input: TokenStream) -> TokenStream {
         #specifier_impl_types
     }
     .into()
+}
+
+#[proc_macro_derive(BitfieldSpecifier)]
+pub fn bitfield_specifier(input: TokenStream) -> TokenStream {
+    use syn::DeriveInput;
+
+    let derive_input = parse_macro_input!(input as DeriveInput);
+    let variants = match fields::get_enum_variants(&derive_input) {
+        Ok(v) => v,
+        Err(e) => return e.into(),
+    };
+    let specifier_impl = traits::impl_specifier_for_enum(&derive_input.ident, &variants);
+
+    quote!{
+        #specifier_impl
+    }.into()
 }

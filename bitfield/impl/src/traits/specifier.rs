@@ -1,5 +1,6 @@
 use quote::quote;
 use proc_macro2::{Ident, Span, TokenStream};
+use syn::{Expr, parse::Error};
 
 pub fn get_specifier_definition() -> TokenStream {
     quote! {
@@ -12,7 +13,7 @@ pub fn get_specifier_definition() -> TokenStream {
 }
 
 pub fn get_types_implementing_specifier() -> TokenStream {
-    let types = (1_u8..=64)
+    let bitfield_types = TokenStream::from_iter((1_u8..=64)
         .map(|bit_size| {
             let bit_type_ident = Ident::new(&format!("B{}", bit_size), Span::call_site());
             let upper_bit_size = match bit_size {
@@ -33,7 +34,33 @@ pub fn get_types_implementing_specifier() -> TokenStream {
                     const BITS: u8 = #bit_size;
                 }
             }
-        });
+        }));
 
-    TokenStream::from_iter(types)
+    quote! {
+        #bitfield_types
+
+        impl Specifier for bool {
+            type InOutType = bool;
+
+            const BITS: u8 = 1;
+        }
+    }
+}
+
+pub fn impl_specifier_for_enum(target: &Ident, variants: &[(&Ident, Option<&Expr>)]) -> TokenStream {
+    let len = variants.len();
+    let l2 = len.ilog2();
+    let bit_size = if 1 << l2 < len { l2 + 1 } else { l2 };
+    let bit_size = match bit_size {
+        v @ 0..=64 => v as u8,
+        _ => return Error::new_spanned(target, "Enum variant discriminant values should fit in 64 bits.").to_compile_error(),
+    };
+
+    quote! {
+        impl bitfield::Specifier for #target {
+            type InOutType = #target;
+
+            const BITS: u8 = #bit_size;
+        }
+    }
 }
