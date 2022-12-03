@@ -47,30 +47,22 @@ pub fn get_types_implementing_specifier() -> TokenStream {
     }
 }
 
-fn is_pow_of_2(v: usize) -> bool {
-    v != 0 && (v & (v - 1) == 0)
-}
-
-pub fn impl_specifier_for_enum(target: &Ident, variants: &[(&Ident, Option<&Expr>)]) -> TokenStream {
-    let len = variants.len();
-
-    if !is_pow_of_2(len) {
+pub fn impl_specifier_for_enum(name: &Ident, variants: &[(&Ident, Option<&Expr>)]) -> TokenStream {
+    if !crate::size::enum_variants_pow_of_2(variants) {
         return Error::new(
             Span::call_site(),
             "BitfieldSpecifier expected a number of variants which is a power of 2"
         ).to_compile_error();
     }
 
-    let l2 = len.ilog2();
-    let bit_size = if 1 << l2 < len { l2 + 1 } else { l2 };
-    let bit_size = match bit_size {
-        v @ 0..=64 => v as u8,
-        _ => return Error::new_spanned(target, "Enum variant discriminant values should fit in 64 bits.").to_compile_error(),
+    let bit_size = match crate::size::enum_bit_size(variants) {
+        Some(v) => v,
+        None => return Error::new_spanned(name, "Enum variant discriminant values should fit in 64 bits.").to_compile_error(),
     };
 
     quote! {
-        impl bitfield::Specifier for #target {
-            type InOutType = #target;
+        impl bitfield::Specifier for #name {
+            type InOutType = #name;
 
             const BITS: u8 = #bit_size;
         }

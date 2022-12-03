@@ -6,7 +6,7 @@ use syn::parse_macro_input;
 
 mod fields;
 mod idents;
-mod size_check;
+mod size;
 mod methods;
 mod traits;
 
@@ -22,14 +22,14 @@ pub fn bitfield(args: TokenStream, input: TokenStream) -> TokenStream {
         Err(e) => return e.into(),
     };
 
-    let bitfield_size = size_check::bitfield_size(&struct_fields);
+    let bitfield_size = size::bitfield_size(&struct_fields);
 
-    let DeriveInput { vis, ident: target, .. } = &input;
+    let DeriveInput { vis, ident: name, .. } = &input;
 
-    let size_const = idents::size_const(target);
-    let size_mod8_const = idents::size_const_mod(target);
-    let checks_impl = traits::impl_bitfield_checks(target, &size_mod8_const);
-    let bitfield_impl = traits::impl_bitfield(target, &struct_fields);
+    let size_const = idents::size_const(name);
+    let size_mod8_const = idents::size_const_mod(name);
+    let checks_impl = traits::impl_bitfield_checks(name, &size_mod8_const);
+    let bitfield_impl = traits::impl_bitfield(name, &struct_fields);
     let getters = methods::getters(&struct_fields);
     let setters = methods::setters(&struct_fields);
 
@@ -39,15 +39,13 @@ pub fn bitfield(args: TokenStream, input: TokenStream) -> TokenStream {
 
         #[repr(C)]
         #[derive(Debug)]
-        #vis struct #target {
+        #vis struct #name {
             data: [u8; #size_const / 8],
         }
 
-        #checks_impl
-
         #bitfield_impl
 
-        impl #target {
+        impl #name {
             fn new() -> Self {
                 Self {
                     data: [0; #size_const / 8],
@@ -57,6 +55,8 @@ pub fn bitfield(args: TokenStream, input: TokenStream) -> TokenStream {
             #getters
             #setters
         }
+
+        #checks_impl
     }.into()
 }
 
@@ -95,8 +95,10 @@ pub fn bitfield_specifier(input: TokenStream) -> TokenStream {
         Err(e) => return e.into(),
     };
     let specifier_impl = traits::impl_specifier_for_enum(&derive_input.ident, &variants);
+    let checks_impl = traits::impl_bitfield_specifier_checks(&derive_input.ident, &variants);
 
     quote!{
         #specifier_impl
+        #checks_impl
     }.into()
 }

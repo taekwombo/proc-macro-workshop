@@ -10,7 +10,7 @@ pub fn get_bitfield_definition() -> TokenStream {
     }
 }
 
-pub fn impl_bitfield(target: &Ident, fields: &[(&Ident, &TypePath)]) -> TokenStream {
+pub fn impl_bitfield(name: &Ident, fields: &[(&Ident, &TypePath)]) -> TokenStream {
     let field_len = fields.len();
 
     let mut fields_i = fields.iter();
@@ -36,7 +36,7 @@ pub fn impl_bitfield(target: &Ident, fields: &[(&Ident, &TypePath)]) -> TokenStr
     let bit_indices = TokenStream::from_iter(indices);
 
     quote! {
-        impl bitfield::Bitfield<#field_len> for #target {
+        impl bitfield::Bitfield<#field_len> for #name {
             const BIT_INDICES: [[usize; 2]; #field_len] = [#bit_indices];
         }
     }

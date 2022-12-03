@@ -1,7 +1,13 @@
-error[E0277]: the trait bound `bitfield::checks::False: bitfield::checks::DiscriminantInRange` is not satisfied
+error[E0277]: the trait bound `DeliveryModeSpecifierVariantExternal: EnumDiscriminantInRange<true>` is not satisfied
   --> tests/09-variant-out-of-range.rs:17:5
    |
 17 |     External,
-   |     ^^^^^^^^ the trait `bitfield::checks::DiscriminantInRange` is not implemented for `bitfield::checks::False`
+   |     ^^^^^^^^ the trait `EnumDiscriminantInRange<true>` is not implemented for `DeliveryModeSpecifierVariantExternal`
    |
-   = help: the trait `bitfield::checks::DiscriminantInRange` is implemented for `bitfield::checks::True`
+   = help: the trait `EnumDiscriminantInRange<false>` is implemented for `DeliveryModeSpecifierVariantExternal`
+note: required by a bound in `DiscriminantInRange`
+  --> src/lib.rs
+   |
+   | bitfield_types!();
+   | ^^^^^^^^^^^^^^^^^ required by this bound in `DiscriminantInRange`
+   = note: this error originates in the macro `bitfield_types` (in Nightly builds, run with -Z macro-backtrace for more info)
