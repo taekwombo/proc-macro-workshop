@@ -10,7 +10,7 @@ pub fn get_checks_module_definition() -> TokenStream {
     }
 }
 
-pub fn impl_checks_traits(target: &Ident, size_mod8_const: &Ident) -> TokenStream { 
+pub fn impl_bitfield_checks(target: &Ident, size_mod8_const: &Ident) -> TokenStream { 
     quote! {
         impl bitfield::checks::BitfieldSizeMod8<#size_mod8_const> for #target {}
         impl bitfield::checks::TotalSizeIsMultipleOfEightBits for #target {}

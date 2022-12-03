@@ -28,7 +28,7 @@ pub fn bitfield(args: TokenStream, input: TokenStream) -> TokenStream {
 
     let size_const = idents::size_const(target);
     let size_mod8_const = idents::size_const_mod(target);
-    let checks_impl = traits::impl_checks_traits(target, &size_mod8_const);
+    let checks_impl = traits::impl_bitfield_checks(target, &size_mod8_const);
     let bitfield_impl = traits::impl_bitfield(target, &struct_fields);
     let getters = methods::getters(&struct_fields);
     let setters = methods::setters(&struct_fields);

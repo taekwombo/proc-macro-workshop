@@ -47,8 +47,20 @@ pub fn get_types_implementing_specifier() -> TokenStream {
     }
 }
 
+fn is_pow_of_2(v: usize) -> bool {
+    v != 0 && (v & (v - 1) == 0)
+}
+
 pub fn impl_specifier_for_enum(target: &Ident, variants: &[(&Ident, Option<&Expr>)]) -> TokenStream {
     let len = variants.len();
+
+    if !is_pow_of_2(len) {
+        return Error::new(
+            Span::call_site(),
+            "BitfieldSpecifier expected a number of variants which is a power of 2"
+        ).to_compile_error();
+    }
+
     let l2 = len.ilog2();
     let bit_size = if 1 << l2 < len { l2 + 1 } else { l2 };
     let bit_size = match bit_size {
