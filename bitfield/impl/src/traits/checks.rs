@@ -1,6 +1,6 @@
 use quote::{quote, quote_spanned};
 use proc_macro2::{Ident, TokenStream};
-use syn::{Expr, parse::Error};
+use syn::{Expr, Field, Lit, Meta, MetaNameValue, parse::Error};
 
 pub fn get_checks_module_definition() -> TokenStream {
     quote! {
@@ -62,3 +62,38 @@ pub fn impl_bitfield_specifier_checks(name: &Ident, variants: &[(&Ident, Option<
     TokenStream::from_iter(impls)
 }
 
+pub fn impl_bits_checks(name: &Ident, fields: Vec<&Field>) -> TokenStream {
+    let mut checks: Vec<TokenStream> = Vec::new();
+
+    for f in fields {
+        let ty = crate::fields::get_field_type(f).unwrap();
+
+        for a in f.attrs.iter() {
+            if !a.path.is_ident("bits") {
+                continue;
+            }
+
+            let int = match a.parse_meta() {
+                Ok(Meta::NameValue(MetaNameValue {
+                    lit: Lit::Int(i),
+                    ..
+                })) => i,
+                _ => return Error::new_spanned(a, "Expected #[bits = N].").to_compile_error(),
+            };
+
+            let expected_len = match int.base10_parse::<usize>() {
+                Ok(i) => i,
+                _ => return Error::new_spanned(a, "Expected #[bits = N].").to_compile_error(),
+            };
+
+            let check = crate::idents::bits_check(name, f.ident.as_ref().unwrap());
+
+            checks.push(quote_spanned! {
+                int.span() => 
+                    const #check: [u8; #expected_len] = [0; <#ty as bitfield::Specifier>::BITS as usize];
+            });
+        }
+    }
+    
+    TokenStream::from_iter(checks)
+}

@@ -21,14 +21,14 @@ fn get_field_name(field: &Field) -> Result<&Ident, TokenStream> {
             Error::new_spanned(field, INVALID_BITFIELD_ATTR_INPUT).to_compile_error())
 }
 
-fn get_field_type(field: &Field) -> Result<&TypePath, TokenStream> {
+pub fn get_field_type(field: &Field) -> Result<&TypePath, TokenStream> {
     match field.ty {
         Type::Path(ref t) => Ok(t),
         ref ty => Err(Error::new_spanned(ty, INVALID_BITFIELD_ATTR_INPUT).to_compile_error()),
     }
 }
 
-pub fn get_struct_fields(input: & DeriveInput) -> Result<Vec<(&Ident, &TypePath)>, TokenStream> {
+pub fn get_struct_fields(input: & DeriveInput) -> Result<(Vec<&Field>, Vec<(&Ident, &TypePath)>), TokenStream> {
     let struct_fields = match input.data {
         Data::Struct(ref d) => &d.fields,
         _ => return Err(Error::new_spanned(input, INVALID_BITFIELD_ATTR_INPUT).to_compile_error()),
@@ -39,9 +39,11 @@ pub fn get_struct_fields(input: & DeriveInput) -> Result<Vec<(&Ident, &TypePath)
         _ => return Err(Error::new_spanned(struct_fields, INVALID_BITFIELD_ATTR_INPUT).to_compile_error()),
     };
 
+    let fields = fields.named.iter().collect::<Vec<_>>();
+
     let mut output = Vec::new();
 
-    for field in fields.named.iter() {
+    for field in fields.iter() {
         let field_name = get_field_name(field)?;
         let field_type = get_field_type(field)?;
 
@@ -52,7 +54,7 @@ pub fn get_struct_fields(input: & DeriveInput) -> Result<Vec<(&Ident, &TypePath)
         return Err(Error::new_spanned(input, INVALID_BITFIELD_ATTR_INPUT).to_compile_error());
     }
 
-    Ok(output)
+    Ok((fields, output))
 }
 
 pub fn get_enum_variants(input: &DeriveInput) -> Result<Vec<(&Ident, Option<&Expr>)>, TokenStream> {

@@ -34,6 +34,13 @@ pub fn size_const_mod(name: &Ident) -> Ident {
     )
 }
 
+pub fn bits_check(struct_name: &Ident, field_name: &Ident) -> Ident {
+    Ident::new(
+        &format!("__BITS_CHECK__{}_{}", struct_name, field_name),
+        Span::call_site(),
+    )
+}
+
 /// Contains specifier functions for BitfieldSpecifier related items.
 pub mod specifier {
     use super::*;
