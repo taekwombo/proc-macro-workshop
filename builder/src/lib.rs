@@ -1,8 +1,8 @@
 #![feature(proc_macro_span)]
 
 use proc_macro::TokenStream;
-use proc_macro2::TokenStream as TokenStream2;
-use syn::{DataStruct, DeriveInput, Field, Fields, Ident, Type};
+use proc_macro2::{TokenStream as TokenStream2, Ident};
+use syn::{DataStruct, DeriveInput, Field, Fields, Type};
 
 // Get syn::DataStruct out of syn::Data..
 // If Builder macro was applied to Union or Struct then returns TokenStream with error.
